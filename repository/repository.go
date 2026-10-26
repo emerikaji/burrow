@@ -6,6 +6,37 @@ import (
 	"path/filepath"
 )
 
+var NoRepoError = errors.New("not a git repository (or any of the parent directories)")
+
+func CheckForRepoPwd() bool {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+
+	return CheckForRepo(pwd)
+}
+
+func CheckForRepo(path string) bool {
+	gitPath := filepath.Join(path, ".git")
+
+	if _, err := os.Stat(gitPath); err == nil {
+		_, errHEAD := os.ReadFile(filepath.Join(gitPath, "HEAD"))
+		info, errObjects := os.Stat(filepath.Join(gitPath, "objects"))
+		if errHEAD == nil && errObjects == nil && info.IsDir() {
+			return true
+		}
+	}
+
+	nextPath := filepath.Dir(path)
+
+	if path == nextPath {
+		return false
+	}
+
+	return CheckForRepo(nextPath)
+}
+
 func Init(path string) (reinit bool, err error) {
 	git := filepath.Join(path, ".git")
 	head := filepath.Join(git, "HEAD")
@@ -40,6 +71,14 @@ func Init(path string) (reinit bool, err error) {
 	}
 
 	return
+}
+
+func Add(paths []string) error {
+	if !CheckForRepoPwd() {
+		return NoRepoError
+	}
+	//TODO
+	return nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

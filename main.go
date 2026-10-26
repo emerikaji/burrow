@@ -35,11 +35,18 @@ func main() {
 			if reinit {
 				fmt.Printf("Reinitialized existing Git repository in %s/.git/", target)
 			} else {
-
 				fmt.Printf("Initialized empty Git repository in %s/.git/", target)
 			}
 		}
 	case "add":
+		if len(os.Args) < 3 {
+			fmt.Println("Nothing specified, nothing added.")
+			os.Exit(0)
+		}
+
+		if err := repository.Add(os.Args[2:]); err != nil {
+			log.Fatalf("Failed to add files: %v", err)
+		}
 	case "commit":
 	default:
 		fmt.Printf("unknown command '%s'. See '%s --help'.", os.Args[1], executable)
