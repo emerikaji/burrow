@@ -17,7 +17,7 @@ func TestHash(t *testing.T) {
 	expected := fmt.Sprintf("blob %d\x00%s", len(content), string(content))
 	expectedHash := sha1.Sum([]byte(expected))
 
-	hash, payload := Hash([]byte(content))
+	hash, payload := Hash(Blob, content)
 
 	if string(payload) != expected {
 		t.Errorf("payload does not match expected")
