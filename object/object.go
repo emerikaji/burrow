@@ -2,10 +2,20 @@ package object
 
 import (
 	"compress/zlib"
+	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 )
+
+func Hash(content []byte) (hash [20]byte, payload []byte) {
+	payload = append([]byte(fmt.Sprintf("blob %d\x00", len(content))), content...)
+
+	hash = sha1.Sum(payload)
+
+	return
+}
 
 func Write(path string, hash [20]byte, payload []byte) (err error) {
 	hashString := hex.EncodeToString(hash[:])
@@ -17,7 +27,7 @@ func Write(path string, hash [20]byte, payload []byte) (err error) {
 		return
 	}
 
-	if err = os.MkdirAll(objectPath, 0755); err != nil {
+	if err = os.Mkdir(objectPath, 0755); err != nil {
 		return
 	}
 
@@ -48,7 +58,7 @@ func Write(path string, hash [20]byte, payload []byte) (err error) {
 		return closeErr
 	}
 
-	if err := os.Chmod(tmp, 0444); err != nil {
+	if err = os.Chmod(tmp, 0444); err != nil {
 		return err
 	}
 

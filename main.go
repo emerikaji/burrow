@@ -44,7 +44,12 @@ func main() {
 			os.Exit(0)
 		}
 
-		if err := repository.Add(os.Args[2:]); err != nil {
+		pwd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("Failed to get current working directory: %v", err)
+		}
+
+		if err := repository.Add(pwd, os.Args[2:]); err != nil {
 			log.Fatalf("Failed to add files: %v", err)
 		}
 	case "commit":
