@@ -35,7 +35,7 @@ func Write(path string, hash [20]byte, payload []byte) (err error) {
 		return
 	}
 
-	if err = os.Mkdir(objectPath, 0755); err != nil {
+	if err = os.MkdirAll(objectPath, 0755); err != nil {
 		return
 	}
 
