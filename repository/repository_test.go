@@ -1,11 +1,14 @@
 package repository
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/emerikaji/burrow/commit"
 	"github.com/emerikaji/burrow/index"
 )
 
@@ -85,11 +88,12 @@ func TestAdd(t *testing.T) {
 	readmeFile := filepath.Join(dir, "README.md")
 
 	git := filepath.Join(dir, ".git")
+	heads := filepath.Join(git, "refs", "heads")
 	objects := filepath.Join(git, "objects")
 	headFile := filepath.Join(git, "HEAD")
 
 	// set up repo
-	if err := os.MkdirAll(objects, 0755); err != nil {
+	if err := os.MkdirAll(heads, 0755); err != nil {
 		t.Fatalf("failed to seed directory: %v", err)
 	}
 	if err := os.WriteFile(headFile, []byte("ref: refs/heads/main\n"), 0644); err != nil {
@@ -115,5 +119,61 @@ func TestAdd(t *testing.T) {
 	hashString := hex.EncodeToString((*readIndex)[0].Hash[:])
 	if _, err = os.ReadFile(filepath.Join(objects, hashString[:2], hashString[2:])); err != nil {
 		t.Fatalf("failed to read object: %v", err)
+	}
+}
+
+func TestCommit(t *testing.T) {
+	dir := t.TempDir()
+	readmeFile := filepath.Join(dir, "README.md")
+
+	git := filepath.Join(dir, ".git")
+	heads := filepath.Join(git, "refs", "heads")
+	headFile := filepath.Join(git, "HEAD")
+
+	// set up repo
+	if err := os.MkdirAll(heads, 0755); err != nil {
+		t.Fatalf("failed to seed directory: %v", err)
+	}
+	if err := os.WriteFile(headFile, []byte("ref: refs/heads/main\n"), 0644); err != nil {
+		t.Fatalf("failed to seed HEAD: %v", err)
+	}
+
+	// set up project files
+	if err := os.WriteFile(readmeFile, []byte("# This is a test README!\nThere are some contents in it."), 0644); err != nil {
+		t.Fatalf("failed to seed README.md: %v", err)
+	}
+
+	// burrow add
+	if err := Add(dir, []string{"README.md"}); err != nil {
+		t.Fatalf("failed to add README.md: %v", err)
+	}
+
+	user := commit.Signature{
+		Name:  "Jane Doe",
+		Email: "janedoe@example.com",
+		When:  time.Now(),
+	}
+
+	// burrow commit
+	commitHashHex, branch, isRoot, err := Commit(dir, user, user, "test commit")
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	if !isRoot {
+		t.Errorf("isRoot=false, want true")
+	}
+
+	if branch != "main" {
+		t.Errorf("branch = %q, want %q", branch, "main")
+	}
+
+	content, err := os.ReadFile(filepath.Join(heads, "main"))
+	if err != nil {
+		t.Fatalf("failed to read main ref: %v", err)
+	}
+
+	if !bytes.Equal(content, []byte(commitHashHex+"\n")) {
+		t.Errorf("wrong ref contents: got %q, want %q", content, commitHashHex+"\n")
 	}
 }

@@ -1,10 +1,12 @@
 package object
 
 import (
+	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -71,6 +73,39 @@ func Write(path string, hash [20]byte, payload []byte) (err error) {
 	}
 
 	return os.Rename(tmp, object)
+}
+
+func ReadAndUnpack(path string, hash [20]byte) (content []byte, err error) {
+	hashString := hex.EncodeToString(hash[:])
+
+	objectPath := filepath.Join(path, ".git", "objects", hashString[0:2])
+	object := filepath.Join(objectPath, hashString[2:])
+
+	compressedPayload, err := os.ReadFile(object)
+	if err != nil {
+		return
+	}
+
+	objectReader, err := zlib.NewReader(bytes.NewReader(compressedPayload))
+	if err != nil {
+		return
+	}
+
+	payload, readErr := io.ReadAll(objectReader)
+
+	err = objectReader.Close()
+
+	if readErr != nil {
+		return
+	}
+
+	if err != nil {
+		return
+	}
+
+	content = payload[bytes.IndexByte(payload, '\x00')+1:]
+
+	return
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

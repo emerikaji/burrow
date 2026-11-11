@@ -68,3 +68,28 @@ func TestWrite(t *testing.T) {
 		t.Errorf("file contents do not match expected")
 	}
 }
+
+func TestReadAndUnpack(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(dir, ".git", "objects"), 0755); err != nil {
+		t.Fatalf("failed to seed directory: %v", err)
+	}
+
+	content := []byte("hello world")
+	payload := []byte(fmt.Sprintf("blob %d\x00%s", len(content), string(content)))
+	hash := sha1.Sum(payload)
+
+	if err := Write(dir, hash, payload); err != nil {
+		t.Fatalf("failed to write object: %v", err)
+	}
+
+	readContent, err := ReadAndUnpack(dir, hash)
+	if err != nil {
+		t.Fatalf("failed to read object: %v", err)
+	}
+
+	if string(readContent) != string(content) {
+		t.Errorf("file contents do not match expected")
+	}
+}

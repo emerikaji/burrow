@@ -2,13 +2,19 @@ package repository
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/emerikaji/burrow/commit"
 	"github.com/emerikaji/burrow/index"
 	"github.com/emerikaji/burrow/object"
+	"github.com/emerikaji/burrow/tree"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,8 +27,8 @@ func CheckForRepo(path string) (found bool, foundPath string) {
 
 	if _, err := os.Stat(gitPath); err == nil {
 		_, errHEAD := os.ReadFile(filepath.Join(gitPath, "HEAD"))
-		info, errObjects := os.Stat(filepath.Join(gitPath, "objects"))
-		if errHEAD == nil && errObjects == nil && info.IsDir() {
+		info, errHeads := os.Stat(filepath.Join(gitPath, "refs", "heads"))
+		if errHEAD == nil && errHeads == nil && info.IsDir() {
 			return true, path
 		}
 	}
@@ -79,18 +85,6 @@ type shared struct {
 	path  string
 }
 
-func translateMode(mode os.FileMode) os.FileMode {
-	if mode&os.ModeSymlink != 0 {
-		return 0120000
-	}
-
-	if mode&0100 != 0 {
-		return 0100755
-	}
-
-	return 0100644
-}
-
 func Add(path string, filePaths []string) (err error) {
 	s := &shared{}
 
@@ -116,6 +110,18 @@ func Add(path string, filePaths []string) (err error) {
 	}
 
 	return s.index.Write(s.path)
+}
+
+func translateMode(mode os.FileMode) os.FileMode {
+	if mode&os.ModeSymlink != 0 {
+		return 0120000
+	}
+
+	if mode&0100 != 0 {
+		return 0100755
+	}
+
+	return 0100644
 }
 
 func GatherEntries(s *shared, filePath string) (err error) {
@@ -146,7 +152,7 @@ func GatherEntries(s *shared, filePath string) (err error) {
 		return
 	}
 
-	hash, payload := object.Hash(content)
+	hash, payload := object.Hash(object.Blob, content)
 
 	if err = object.Write(s.path, hash, payload); err != nil {
 		return
@@ -172,6 +178,72 @@ func GatherEntries(s *shared, filePath string) (err error) {
 	s.mu.Lock()
 	s.index.Add(entry)
 	s.mu.Unlock()
+
+	return
+}
+
+func Commit(path string, author commit.Signature, committer commit.Signature, message string) (commitHashHex string, branch string, isRoot bool, err error) {
+	found, basePath := CheckForRepo(path)
+	if !found {
+		err = errorNoRepo
+		return
+	}
+
+	idx, err := index.Read(basePath)
+	if err != nil {
+		return
+	}
+
+	leaves, err := tree.Build(idx)
+	if err != nil {
+		return
+	}
+
+	rootTreeHash, err := tree.Write(basePath, leaves)
+	if err != nil {
+		return
+	}
+
+	commitData := commit.Metadata{
+		RootTreeHash: rootTreeHash,
+		Author:       author,
+		Committer:    committer,
+		Message:      message,
+	}
+
+	ref, err := commitData.PopulateParent(path)
+	if err != nil {
+		return
+	}
+
+	log.Println(ref)
+
+	_, branch, _ = strings.CutLast(ref, string(filepath.Separator))
+	isRoot = len(commitData.ParentCommitHashes) == 0
+
+	if len(commitData.ParentCommitHashes) > 0 {
+		parentHash := commitData.ParentCommitHashes[0]
+
+		var parentTreeHash [20]byte
+		if parentTreeHash, err = commit.ReadTree(basePath, parentHash); err != nil {
+			return
+		}
+
+		// If the new tree matches the parent tree, nothing changed!
+		if rootTreeHash == parentTreeHash {
+			err = fmt.Errorf("no changes added to commit (use 'burrow add' first)")
+			return
+		}
+	}
+
+	commitHash, err := commitData.Write(path)
+	if err != nil {
+		return
+	}
+
+	commitHashHex = hex.EncodeToString(commitHash[:])
+
+	err = os.WriteFile(ref, []byte(commitHashHex+"\n"), 0644)
 
 	return
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/emerikaji/burrow/object"
 )
 
+// ─── Tree Interfaces ─────────────────────────────────────────────────────────
+
 type Subtree interface {
 	Parent() Subtree
 	HasChildSubtrees() bool
@@ -24,6 +26,8 @@ type Entry interface {
 	Name() string
 	Hash() [20]byte
 }
+
+// ─── Tree Structs ────────────────────────────────────────────────────────────
 
 type Directory struct {
 	name                string
@@ -119,6 +123,8 @@ func (f *File) Name() string {
 func (f *File) Hash() [20]byte {
 	return f.hash
 }
+
+// ─── Methods ─────────────────────────────────────────────────────────────────
 
 func Build(idx *index.Index) (leaves []Subtree, err error) {
 	root := &Directory{
