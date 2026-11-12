@@ -53,7 +53,7 @@ func DiscoverRefs(url string) (refs map[string]string, capabilities map[string]s
 	refs = make(map[string]string)
 
 	for _, packet := range packets[2:] {
-		if packet.Len() == 0 {
+		if _, ok := packet.(*pkt.Flush); ok {
 			break
 		}
 
@@ -68,6 +68,9 @@ func DiscoverRefs(url string) (refs map[string]string, capabilities map[string]s
 			capabilities = make(map[string]string)
 
 			for capability := range strings.SplitSeq(line[idx+1:], " ") {
+				if capability == "" {
+					continue
+				}
 				capabilityName, capabilityVal, found := strings.Cut(capability, "=")
 				if !found {
 					capabilityVal = "true"
